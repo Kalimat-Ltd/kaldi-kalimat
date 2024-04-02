@@ -6,6 +6,7 @@
 
 stage=-1
 
+# wget -c https://afs.qcri.org/speech/mgb2/train.tar.gz https://afs.qcri.org/speech/mgb2/dev.tar.gz https://afs.qcri.org/speech/mgb2/test.tar.gz
 # preference on how to process xml file [python, xml]
 process_xml="python"
 
@@ -63,7 +64,7 @@ if [ $stage -le 2 ]; then
 fi
 
 # Using the training data transcript for building the language model
-LM_TEXT=DB/train/lm_text/lm_text_clean_bw
+LM_TEXT=DB/train/lm_text/lm_text_utf8
 
 if [ $stage -le 3 ]; then
   #LM TRAINING: Using the training set transcript text for language modelling
@@ -149,7 +150,7 @@ if [ $stage -le 11 ]; then
   steps/align_si.sh --nj $nj --cmd "$train_cmd" \
     data/train_mer${mer}_subset500 data/lang exp/mer$mer/tri1 exp/mer$mer/tri1_ali 
 
-  #tri2 [a larger model than tri1]
+  #tri2 [a larger model than  tri1]
   steps/train_deltas.sh --cmd "$train_cmd" \
     3000 40000 data/train_mer${mer}_subset500 data/lang exp/mer$mer/tri1_ali exp/mer$mer/tri2
 
@@ -157,6 +158,7 @@ if [ $stage -le 11 ]; then
   utils/mkgraph.sh data/lang_test exp/mer$mer/tri2 exp/mer$mer/tri2/graph
 
   for dev in dev_overlap dev_non_overlap; do
+   # reduce the nDecodeJobs to 10 if you encounter issues
    steps/decode.sh --nj $nDecodeJobs --cmd "$decode_cmd" --config conf/decode.config \
    exp/mer$mer/tri2/graph data/$dev exp/mer$mer/tri2/decode_$dev &
   done

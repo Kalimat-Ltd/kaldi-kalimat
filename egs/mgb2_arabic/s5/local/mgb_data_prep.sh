@@ -33,7 +33,9 @@ head -500 $train_dir/wav_list > $train_dir/wav_list.short
 
 set -e -o pipefail
 
-xmldir=$db_dir/train/xml/bw
+xmldir=$db_dir/train/xml/utf8
+devxml=$db_dir/dev/xml/utf8
+
 if [ $process_xml == "python" ]; then
   echo "using python to process xml file"
   # check if bs4 and lxml are installin in python
@@ -62,17 +64,43 @@ else
   exit 1;
 fi
 
-for x in text segments; do
+for x in segments; do
   cp $db_dir/dev/${x}.all $dev_dir/${x}
 done
-
+if [ $process_xml == "python" ]; then
+  echo "using python to process xml file"
+  # check if bs4 and lxml are installin in python
+  local/check_tools.sh
+  # process xml file using python
+  cat $dev_dir/wav_list | while read basename; do
+    [ ! -e $devxml/$basename.xml ] && echo "Missing $devxml/$basename.xml" && exit 1
+    local/process_xml.py $devxml/$basename.xml - | local/add_to_datadir.py $basename $dev_dir $mer
+  done
+fi
 find $db_dir/dev/wav -type f -name "*.wav" | \
   awk -F/ '{print $NF}' | perl -pe 's/\.wav//g' > \
   $dev_dir/wav_list
 
+if [ $process_xml == "python" ]; then
+  echo "using python to process xml file"
+  # check if bs4 and lxml are installin in python
+  local/check_tools.sh
+  # process xml file using python
+  cat $dev_dir/wav_list | while read basename; do
+    [ ! -e $devxml/$basename.xml ] && echo "Missing $devxml/$basename.xml" && exit 1
+    local/process_xml.py $devxml/$basename.xml - | local/add_to_datadir.py $basename $dev_dir $mer
+  done
+fi
+
+
 for x in $(cat $dev_dir/wav_list); do 
   echo $x $db_dir/dev/wav/$x.wav >> $dev_dir/wav.scp
 done
+
+for x in $(cat $train_dir/wav_list); do 
+  echo $x $db_dir/train/wav/$x.wav >> $train_dir/wav.scp
+done
+
 
 #Creating a file reco2file_and_channel which is used by convert_ctm.pl in local/score.sh script
 awk '{print $1" "$1" 1"}' $dev_dir/wav.scp > $dev_dir/reco2file_and_channel
@@ -92,6 +120,7 @@ for list in overlap non_overlap; do
 done
 
 for dir in $train_dir $dev_dir ${dev_dir}_overlap ${dev_dir}_non_overlap; do
+  utils/utt2spk_to_spk2utt.pl $dir/utt2spk > $dir/spk2utt
   utils/fix_data_dir.sh $dir
   utils/validate_data_dir.sh --no-feats $dir
 done
@@ -99,7 +128,9 @@ done
 mkdir -p ${train_dir}_subset500
 utils/filter_scp.pl $train_dir/wav_list.short ${train_dir}/wav.scp > \
   ${train_dir}_subset500/wav.scp
-cp ${train_dir}/{utt2spk,segments,spk2utt} ${train_dir}_subset500
+cp ${train_dir}/utt2spk ${train_dir}_subset500
+cp ${train_dir}/segments ${train_dir}_subset500
+cp ${train_dir}/spk2utt ${train_dir}_subset500
 utils/fix_data_dir.sh ${train_dir}_subset500
 
 echo "Training and Test data preparation succeeded"
